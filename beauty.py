@@ -19,6 +19,7 @@ class Beauty:
     Por ahora es valido solo para mis archivos de WxPython, pero se podria
     adaptar para otros con mucha facilidad.
     Aun le falta mucho a este codigo.
+    Ultima modificacion: 7-dic-2012
     '''
     def __init__(self, fileToClean):
         '''
@@ -100,24 +101,28 @@ class Beauty:
 
         for line in listData[fromLine: toLine]:
             fmtString = self.formateadorPEP8(line)
-            fhOut.write(fmtString)
-            # agrega documentacion
-            if fmtString.lstrip().startswith('class'):
-                doc = "    \'\'\'\r\n"
-                doc += "    Clase " + className + "\r\n"
-                doc += "    \'\'\'\r\n"
-                fhOut.write(doc)
+            if len(fmtString.strip()) > 0:
+                if fmtString.lstrip().startswith('def'):
+                    fhOut.write('\r\n')
 
-            if fmtString.lstrip().startswith('def'):
-                doc = "        \'\'\'\r\n"
-                doc += "            Descripcion de la clase o metodo\r\n"
-                doc += "            @param __VARIABLE__:\r\n"
-                doc += "            @type __TIPO__:\r\n"
-                doc += "            @param __VARIABLE__:\r\n"
-                doc += "            @type __TIPO__:\r\n"
-                doc += "            @return: void\r\n"
-                doc += "        \'\'\'\r\n"
-                fhOut.write(doc)
+                fhOut.write(fmtString)
+                # agrega documentacion
+                if fmtString.lstrip().startswith('class'):
+                    doc = "    \'\'\'\r\n"
+                    doc += "    Clase " + className + "\r\n"
+                    doc += "    \'\'\'\r\n"
+                    fhOut.write(doc)
+
+                if fmtString.lstrip().startswith('def'):
+                    doc = "        \'\'\'\r\n"
+                    doc += "            Descripcion de la clase o metodo\r\n"
+                    doc += "            @param __VARIABLE__:\r\n"
+                    doc += "            @type __TIPO__:\r\n"
+                    doc += "            @param __VARIABLE__:\r\n"
+                    doc += "            @type __TIPO__:\r\n"
+                    doc += "            @return: void\r\n"
+                    doc += "        \'\'\'\r\n"
+                    fhOut.write(doc)
         fhOut.close()
 
     def formateadorPEP8(self, line):
@@ -128,25 +133,20 @@ class Beauty:
             @return: string
         '''
         # Remplaza y arregla para que cumpla PEP8
-        a = line.replace(',', ', ')
-        a = a.replace(',  ', ', ')
 
-        a = a.replace('-', ' - ')
-        a = a.replace('  -  ', ' - ')
+        if len(line) > 79 and line.lstrip().startswith('#'):
+            line = self.spaces(line) + "# Comentario removido\r\n"
 
-        a = a.replace('+', ' + ')
-        a = a.replace('  +  ', ' + ')
+        if len(line) > 79 and line.lstrip().startswith('##'):
+            line = self.spaces(line) + "# Comentario removido\r\n"
 
-        a = a.replace('/', ' / ')
-        a = a.replace('  /  ', ' / ')
+        a = line
 
         a = a.replace(' _value = ', '\r\n' + self.spaces(line) + '_value=')
         a = a.replace(' _style = ', '\r\n' + self.spaces(line) + '_style=')
         a = a.replace(' _id = ', '\r\n' + self.spaces(line) + '_id=')
-        a = a.replace('(cols = ', '(cols=')
-        a = a.replace('hgap = ', 'hgap=')
-        a = a.replace('vgap = ', 'vgap=')
-        a = a.replace('0, wx.', '0,\r\n' + self.spaces(line) + 'wx.')
+        a = a.replace(', wx.', ',\r\n' + self.spaces(line) + 'wx.')
+        a = a.replace('(wx.', '(\r\n' + self.spaces(line) + 'wx.')
         a = a.replace('| wx.', '|\r\n' + self.spaces(line) + 'wx.')
         if not a.lstrip().startswith('def'):
             a = a.replace('(self', '(\r\n' + self.spaces(line) + 'self')
@@ -154,9 +154,15 @@ class Beauty:
         a = a.replace(':', ': ')
         a = a.replace(':  ', ': ')
 
+        if len(a) > 79:
+            if '\r\n' not in a:
+                # evita la situacion de un split(',')
+                if "split(',')" not in a:
+                    a = a.replace(',', ',\r\n' + self.spaces(line))
 
         if a.lstrip().startswith('if'):
             if '== True' in a:
+
                 a = a.replace('== True', '')
             if '== False' in a:
                 a = a.replace('== False', '')
@@ -180,10 +186,25 @@ class Beauty:
         a = a.replace('( ', '(')
         a = a.replace(' )', ')')
 
-        a = a.replace('{ ', '{')
-        a = a.replace(' }', '}')
+        try:
+            veces = a.count('{')
+            for vez in range(veces):
+                numSpc = 0
+                pos1 = a.index('{') + 1
+                for x in range(pos1, len(a)):
+                    if a[x] == ' ':
+                        numSpc += 1
+                    else:
+                        break
+                buscado = '{' + ' ' * (numSpc)
+                a = a.replace(buscado, '{')
+        except:
+            pass
 
         # Para los casos de if, else, def y class
+        if a.lstrip().startswith('for'):
+            a = a.replace(': ', ':')
+
         if a.lstrip().startswith('if'):
             a = a.replace(': ', ':')
 
@@ -193,9 +214,40 @@ class Beauty:
         if a.lstrip().startswith('class'):
             a = a.replace(': ', ':')
 
+        if a.lstrip().startswith('try'):
+            a = a.replace(': ', ':')
+
+        if a.lstrip().startswith('except'):
+            a = a.replace(': ', ':')
+
         if a.lstrip().startswith('def'):
             a = a.replace(': ', ':')
             a = a.replace(' = ', '=')
+
+        if a.count('=') > 1:
+            b = a[::-1]
+            a = b.replace(' = ', '=', ((b.count('=')) - 1))[::-1]
+
+        try:
+            pos1 = a.index("'")
+            pos2 = a[pos1 + 1:].index("'")
+            subStr1 = a[pos1 + 1: pos1 + pos2 + 1]
+            # si se deben hacer cambios especiales en el substring
+            # se aplicaria aqui
+            #print(subStr1)
+        except:
+            if not a.lstrip().startswith('if'):
+                a = a.replace('-', ' - ')
+                a = a.replace('  -  ', ' - ')
+
+                a = a.replace('+', ' + ')
+                a = a.replace('  +  ', ' + ')
+
+                a = a.replace('/', ' / ')
+                a = a.replace('  /  ', ' / ')
+
+                #a = a.replace(',', ', ')
+                a = a.replace(',  ', ', ')
 
         return a
 
@@ -212,4 +264,3 @@ class Beauty:
 
 if __name__ == '__main__':
     Beauty(sys.argv[1])
-
